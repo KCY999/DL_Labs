@@ -1,9 +1,33 @@
 import argparse
+import os
+import sys
+src_dir = os.path.abspath("src")
+sys.path.append(src_dir)
+from models.unet import UNet
+# from models.resnet34_unet import 
+import oxford_pet
 
-def train(args):
-    # implement the training function here
+import torch
+from torch.utils.data import DataLoader
+
+
+
+
+
+
+# train U-Net
+def train_unet(args):
+    print(args)
     
-    assert False, "Not implemented yet!"
+    train_dataset = oxford_pet.SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
+    val_dataset = oxford_pet.SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
+
+
+
+
+
+
+    
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
@@ -16,3 +40,6 @@ def get_args():
  
 if __name__ == "__main__":
     args = get_args()
+    
+
+

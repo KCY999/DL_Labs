@@ -132,3 +132,24 @@ def load_dataset(data_path, mode):
     # implement the load dataset function here
 
     assert False, "Not implemented yet!"
+
+
+
+if __name__ == "__main__":
+    
+    # use this to download raw data first
+    # OxfordPetDataset.download('./dataset/oxford-iiit-pet')
+
+
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter('logs')
+    # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='test')
+    dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
+    # print(test_dataset[0]['trimap'].tolist())
+    for i in range(10):
+        d = dataset[i]
+        print(d['image'].shape)
+        print(d['mask'].shape)
+        writer.add_image('image', d['image'], i)
+        writer.add_image('mask', d['mask'], i)
+        writer.add_image('trimap', d['trimap'], i)
