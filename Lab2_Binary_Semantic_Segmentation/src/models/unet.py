@@ -112,7 +112,10 @@ if __name__ == "__main__":
 
 
     import torchvision
+
+
     for data in datloader:
+        print(data)
         imgs = data['image'].float().cuda()
         masks = data['mask'].float().cuda()  
 

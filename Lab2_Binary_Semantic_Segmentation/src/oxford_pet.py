@@ -7,6 +7,16 @@ from PIL import Image
 from tqdm import tqdm
 from urllib.request import urlretrieve
 
+def min_max_normalize(arr):
+    arr_min = arr.min()
+    arr_max = arr.max()
+    return (arr - arr_min) / (arr_max - arr_min) if arr_max != arr_min else arr
+
+def z_score_standardize(data):
+    mean = np.mean(data)
+    std = np.std(data)
+    return (data - mean) / std
+
 class OxfordPetDataset(torch.utils.data.Dataset):
     def __init__(self, root, mode="train", transform=None):
 
@@ -86,7 +96,10 @@ class SimpleOxfordPetDataset(OxfordPetDataset):
         sample = super().__getitem__(*args, **kwargs)
 
         # resize images
-        image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))
+        # image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))
+        # image = min_max_normalize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)))
+        image = z_score_standardize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)))
+        
         mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
         trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST))
 
