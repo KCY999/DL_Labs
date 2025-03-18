@@ -96,9 +96,9 @@ class SimpleOxfordPetDataset(OxfordPetDataset):
         sample = super().__getitem__(*args, **kwargs)
 
         # resize images
-        # image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))
-        # image = min_max_normalize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)))
-        image = z_score_standardize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)))
+        # image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)) # d: default
+        # image = min_max_normalize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))) # 
+        image = z_score_standardize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))) # zn: z_score
         
         mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
         trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST))

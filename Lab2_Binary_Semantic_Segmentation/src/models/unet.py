@@ -12,6 +12,7 @@ Ref:
 
 """
 
+# PS orig paper of U-Net did not use BN
 class DoubleConv(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(DoubleConv, self).__init__()
