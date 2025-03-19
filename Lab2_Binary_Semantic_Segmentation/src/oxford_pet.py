@@ -7,24 +7,24 @@ from PIL import Image
 from tqdm import tqdm
 from urllib.request import urlretrieve
 
-def min_max_normalize(arr):
-    arr_min = arr.min()
-    arr_max = arr.max()
-    return (arr - arr_min) / (arr_max - arr_min) if arr_max != arr_min else arr
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
-def z_score_standardize(data):
+DEFAULT_ROOT = "./dataset/oxford-iiit-pet"
+
+
+def normalize(data):
     mean = np.mean(data)
     std = np.std(data)
     return (data - mean) / std
 
 class OxfordPetDataset(torch.utils.data.Dataset):
-    def __init__(self, root, mode="train", transform=None):
+    def __init__(self, root=DEFAULT_ROOT, mode="train"):
 
         assert mode in {"train", "valid", "test"}
 
         self.root = root
         self.mode = mode
-        self.transform = transform
 
         self.images_directory = os.path.join(self.root, "images")
         self.masks_directory = os.path.join(self.root, "annotations", "trimaps")
@@ -46,8 +46,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
         mask = self._preprocess_mask(trimap)
 
         sample = dict(image=image, mask=mask, trimap=trimap)
-        if self.transform is not None:
-            sample = self.transform(**sample)
+
 
         return sample
 
@@ -92,23 +91,63 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
 class SimpleOxfordPetDataset(OxfordPetDataset):
     def __getitem__(self, *args, **kwargs):
-
         sample = super().__getitem__(*args, **kwargs)
-
-        # resize images
-        # image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)) # d: default
-        # image = min_max_normalize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))) # 
-        image = z_score_standardize(np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))) # zn: z_score
         
+        # resize images
+        image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)) # d: default        
         mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
         trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST))
-
+        
+        image = normalize(image)
         # convert to other format HWC -> CHW
         sample["image"] = np.moveaxis(image, -1, 0)
         sample["mask"] = np.expand_dims(mask, 0)
         sample["trimap"] = np.expand_dims(trimap, 0)
 
         return sample
+
+
+# Augmented Dataset
+class AugDataset(OxfordPetDataset):
+
+    def __init__(self):
+        super().__init__(mode="train")
+        self.aug_transform = A.Compose([
+            A.Affine(
+                translate_percent=(0.03, 0.03), 
+                rotate=(-10, 10),
+                p=1.0
+            ),
+            A.HorizontalFlip(p=0.5),
+            A.RandomBrightnessContrast(p=0.5)
+        ])
+
+
+    def __getitem__(self, *args, **kwargs):
+        sample = super().__getitem__(*args, **kwargs)
+        image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR)) # d: default        
+        mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
+        trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST))
+
+        augmented  = self.aug_transform(image=image, mask=mask)
+        # print(augmented)
+        # print(type(augmented))
+        image = augmented['image']
+        mask = augmented['mask']
+
+        image = normalize(image)
+        # convert to other format HWC -> CHW
+        sample["image"] = np.moveaxis(image, -1, 0)
+        sample["mask"] = np.expand_dims(mask, 0)
+        sample["trimap"] = np.expand_dims(trimap, 0)
+
+        return sample
+        
+
+
+
+
+
 
 
 class TqdmUpTo(tqdm):
@@ -141,10 +180,18 @@ def extract_archive(filepath):
     if not os.path.exists(dst_dir):
         shutil.unpack_archive(filepath, extract_dir)
 
-def load_dataset(data_path, mode):
-    # implement the load dataset function here
 
-    assert False, "Not implemented yet!"
+
+def load_dataset(data_path=DEFAULT_ROOT, mode='train', n_aug=0):
+    dataset = SimpleOxfordPetDataset(data_path, mode)
+    if mode == "train" and n_aug > 0:
+        for _ in range(n_aug):
+            aug_dataset = AugDataset()
+            dataset += aug_dataset
+
+    # print(len(dataset))
+
+    return dataset
 
 
 
@@ -156,13 +203,40 @@ if __name__ == "__main__":
 
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter('logs')
+    
+
+    print(len(load_dataset(mode="valid")))
+    print(len(load_dataset(mode="test")))
+    print(len(load_dataset(mode='train')))
+    print(len(load_dataset(mode='train', n_aug=1)))
+
+    a_t = load_dataset(mode='train', n_aug=1)
+    for i in range(len(a_t)):
+        print(a_t[i]['image'].shape)
+    
+    
     # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='test')
-    dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
-    # print(test_dataset[0]['trimap'].tolist())
-    for i in range(10):
-        d = dataset[i]
-        print(d['image'].shape)
-        print(d['mask'].shape)
-        writer.add_image('image', d['image'], i)
-        writer.add_image('mask', d['mask'], i)
-        writer.add_image('trimap', d['trimap'], i)
+    # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
+    
+    # a_dataset = AugDataset()
+    # # print(test_dataset[0]['trimap'].tolist())
+    # for i in range(10):
+    #     d = a_dataset[i]
+    #     # print(d['image'].shape)
+    #     # print(d['mask'].shape)
+    #     writer.add_image('aug_image', d['image'], i)
+    #     writer.add_image('aug_mask', d['mask'], i)
+    #     # writer.add_image('trimap', d['trimap'], i)
+
+    # n_dataset = SimpleOxfordPetDataset()
+    # for i in range(10):
+    #     d = n_dataset[i]
+    #     # print(d['image'].shape)
+    #     # print(d['mask'].shape)
+    #     writer.add_image('orig_img', d['image'], i)
+    #     writer.add_image('orig_mask', d['mask'], i)
+    #     # writer.add_image('trimap', d['trimap'], i)
+
+
+
+

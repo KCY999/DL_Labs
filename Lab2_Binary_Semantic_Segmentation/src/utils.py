@@ -1,7 +1,15 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import datetime
 
-writer = SummaryWriter('logs')
+writer = SummaryWriter('logs/tmp')
+
+
+def new_writer():
+    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    writer = SummaryWriter(log_dir)
+    return writer
+
 
 def dice_score_same_size(pred_mask, gt_mask, epsilon=1e-6):
     size = pred_mask.shape[0] * pred_mask.shape[1]

@@ -14,15 +14,26 @@ from models.unet import UNet
 from models.resnet34_unet import ResNet34_UNet
 import oxford_pet
 from evaluate import evaluate
+from utils import new_writer
+
+writer = new_writer()
+
 
 # train U-Net
-def train_unet(data_path="./dataset/oxford-iiit-pet", batch_size=10, epochs=5, lr=1e-5):
+def train_unet(data_path="./dataset/oxford-iiit-pet", batch_size=15, epochs=5, lr=1e-5, n_aug=0):
 
-    train_dataset = oxford_pet.SimpleOxfordPetDataset(root=data_path, mode='train')
-    val_dataset = oxford_pet.SimpleOxfordPetDataset(root=data_path, mode='valid')
+    # train_dataset = oxford_pet.SimpleOxfordPetDataset(mode='train')
+    # val_dataset = oxford_pet.SimpleOxfordPetDataset(mode='valid')
+
+
+    train_dataset = oxford_pet.load_dataset(data_path=data_path, mode='train', n_aug=n_aug)
+    val_dataset = oxford_pet.load_dataset(data_path=data_path, mode='valid')
+
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
+
+    
 
     unn_model = UNet().cuda()
     criterion = nn.CrossEntropyLoss() 
@@ -50,34 +61,29 @@ def train_unet(data_path="./dataset/oxford-iiit-pet", batch_size=10, epochs=5, l
             loss.backward()
             optimizer.step()
         
-        # unn_model.eval()
-        # val_running_loss = 0
-        # with torch.no_grad():
-        #     for sample in tqdm(val_dataloader):
-        #         imgs = sample['image'].float().cuda()
-        #         masks = sample['mask'].squeeze(1).long().cuda()
-
-
-        #         preds = unn_model(imgs)
-        #         # print(preds.shape, masks.shape)
-        #         loss = criterion(preds, masks)
-        #         val_running_loss += loss.item()
-        
         val_running_loss = evaluate(net=unn_model, criterion=criterion, val_dataloader=val_dataloader)
 
-
-        print(f"\n Epoch {epoch+1}, avg train_running_loss: {train_running_loss / len(train_dataloader)} \n",
-              f"Epoch {epoch+1}, avg val_running_loss: {val_running_loss / len(val_dataloader)} \n" )
+        train_loss =  train_running_loss / len(train_dataloader)
+        val_loss = val_running_loss / len(val_dataloader)
+        print(f"\n Epoch {epoch+1}, avg train_running_loss: {train_loss} \n",
+              f"Epoch {epoch+1}, avg val_running_loss: {val_loss} \n" )
+        
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        writer.add_scalar("Loss/val", val_loss, epoch)
 
     
-    torch.save(unn_model.state_dict(), f"./saved_models/unet_weights_{epochs}_{lr}_zn.pth")
+    torch.save(unn_model.state_dict(), f"./saved_models/unet_weights_{epochs}_{lr}_{n_aug}.pth")
 
 # train resnet34_unet
-def train_resnet34_unet(data_path="./dataset/oxford-iiit-pet", batch_size=10, epochs=5, lr=1e-5):
+def train_resnet34_unet(data_path="./dataset/oxford-iiit-pet", batch_size=10, epochs=5, lr=1e-5, n_aug=0):
 
-    train_dataset = oxford_pet.SimpleOxfordPetDataset(root=data_path, mode='train')
-    val_dataset = oxford_pet.SimpleOxfordPetDataset(root=data_path, mode='valid')
+    # train_dataset = oxford_pet.SimpleOxfordPetDataset(root=data_path, mode='train')
+    # val_dataset = oxford_pet.SimpleOxfordPetDataset(root=data_path, mode='valid')
     
+    train_dataset = oxford_pet.load_dataset(data_path=data_path, mode='train', n_aug=n_aug)
+    val_dataset = oxford_pet.load_dataset(data_path=data_path, mode='valid')
+
+
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
 
@@ -120,14 +126,18 @@ def train_resnet34_unet(data_path="./dataset/oxford-iiit-pet", batch_size=10, ep
                 loss = criterion(preds, masks)
                 val_running_loss += loss.item()
 
-        print(f"\n Epoch {epoch+1}, avg train_running_loss: {train_running_loss / len(train_dataloader)} \n",
-              f"Epoch {epoch+1}, avg val_running_loss: {val_running_loss / len(val_dataloader)} \n" )
+        train_loss =  train_running_loss / len(train_dataloader)
+        val_loss = val_running_loss / len(val_dataloader)
+        print(f"\n Epoch {epoch+1}, avg train_running_loss: {train_loss} \n",
+              f"Epoch {epoch+1}, avg val_running_loss: {val_loss} \n" )
+        
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        writer.add_scalar("Loss/val", val_loss, epoch)
 
     
-    torch.save(resnet34_unet.state_dict(), f"./saved_models/resnet34_unet_weights_{epochs}_{lr}_zn.pth")
+    torch.save(resnet34_unet.state_dict(), f"./saved_models/resnet34_unet_weights_{epochs}_{lr}_{n_aug}.pth")
 
             
-
 
 
 def get_args():
@@ -140,10 +150,11 @@ def get_args():
     return parser.parse_args()
  
 if __name__ == "__main__":
-    args = get_args()
+    # args = get_args()
 
-    # train_unet(epochs=20, lr=3e-5)
-    train_resnet34_unet(epochs=12, lr=1e-5)
+    train_unet(epochs=3, batch_size=10, lr=1e-5, n_aug=0)
+    # train_resnet34_unet(epochs=10, batch_size=15, lr=1e-5, n_aug=2)
+    # train_resnet34_unet(epochs=10, batch_size=15, lr=1e-5, n_aug=0)
 
 
 
