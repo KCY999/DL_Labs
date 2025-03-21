@@ -6,13 +6,13 @@ import tqdm
 from torch.utils.data import DataLoader
 import torchvision
 
-from utils import writer, dice_score_same_size
+from utils import new_writer, dice_score_same_size, batch_avg_dice
 from models.unet import UNet
 from models.resnet34_unet import ResNet34_UNet
 import oxford_pet
 
 def infer_UNet(model_name, batch_size=15):
-
+    writer = new_writer(type="img")
 
     test_dataset = oxford_pet.SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='test')
     test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
@@ -35,30 +35,36 @@ def infer_UNet(model_name, batch_size=15):
         preds = model(imgs)
         # print(preds)
         # print(preds.shape)
+        avg_batch_dice_socre = batch_avg_dice(preds, masks)
+        print(f"Batch {s}: avg_dice_score  =  {avg_batch_dice_socre} \n")
+        avg_dice_score += avg_batch_dice_socre
+
         binary_preds = torch.argmax(preds, dim=1)
         binary_preds = binary_preds.unsqueeze(1)
         # print(binary_preds)
         # print(binary_preds.shape)
         writer.add_image('pred', torchvision.utils.make_grid(binary_preds), s)
         
-        avg_batch_dice_socre = 0
-        for i in range(sample_size):
-            ds = dice_score_same_size(binary_preds[i][0], masks[i][0])
-            avg_batch_dice_socre += ds / sample_size
-            print(f"Batch {s}, instance {i}:  dice score  =  {ds}")
+
+        # avg_batch_dice_socre = 0
+        # for i in range(sample_size):
+        #     ds = dice_score_same_size(binary_preds[i][0], masks[i][0])
+        #     avg_batch_dice_socre += ds / sample_size
+        #     print(f"Batch {s}, instance {i}:  dice score  =  {ds}")
+
         
-        print(f"Batch {s}: avg_dice_score  =  {avg_batch_dice_socre} \n")
-        avg_dice_score += avg_batch_dice_socre
 
 
         s += 1
         # if s > 15:
         #     break
-        
-    print(f"Whole, avg_dice_score = {avg_dice_score / s}")
+
+    avg_dice_score /= s
+    print(f"Whole, avg_dice_score = {avg_dice_score}")
 
 
 def infer_ResNet34_UNet(model_name, batch_size=15):
+    writer = new_writer(type="img")
 
     test_dataset = oxford_pet.SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='test')
     test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
@@ -111,7 +117,7 @@ def get_args():
     return parser.parse_args()
 
 if __name__ == '__main__':
-    args = get_args()
+    # args = get_args()
 
-    infer_UNet("unet_weights_20_1e-05_0.pth")
-    # infer_ResNet34_UNet("resnet34_unet_weights_10_1e-05_0.pth")
+    # infer_UNet("unet_weights_30_3e-05_0.pth")
+    infer_ResNet34_UNet("resnet34_unet_weights_25_1e-05_1.pth")
