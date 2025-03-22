@@ -49,15 +49,25 @@ class Block(nn.Module):
         return x
 
 
-
-
+class DoubleConv_bn(unet.DoubleConv):
+    def __init__(self, in_channel, out_channel):
+        super(DoubleConv_bn, self).__init__(in_channel, out_channel)
+        self.d_conv = nn.Sequential(
+            nn.Conv2d(in_channel, out_channel, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channel),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channel),
+            nn.ReLU(inplace=True)
+        )
 
 
 class unet_up_sampling_in_res34_unet(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(unet_up_sampling_in_res34_unet, self).__init__()
         self.up_conv = nn.ConvTranspose2d(in_channel, out_channel, kernel_size=2, stride=2)
-        self.conv = unet.DoubleConv(out_channel, out_channel)
+        # self.conv = unet.DoubleConv(out_channel, out_channel)
+        self.conv = DoubleConv_bn(out_channel, out_channel)
 
  
     def forward(self, x, crop):
