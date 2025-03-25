@@ -28,13 +28,13 @@ def batch_avg_dice(pred_masks, gt_masks, type="unet", epsilon=1e-6):
     n = pred_masks.shape[0]
     size = pred_masks.shape[-1]**2
 
-    sigmoid = torch.nn.Sigmoid()
     # print(pred_masks.shape, gt_masks.shape)
 
     if type == "unet":
         binary_preds = torch.argmax(pred_masks, dim=1)
         gt_masks = gt_masks.squeeze(1)
     else:
+        sigmoid = torch.nn.Sigmoid()
         binary_preds = (sigmoid(pred_masks) > 0.5).float().squeeze(1)
         gt_masks = gt_masks.squeeze(1)
 
@@ -46,29 +46,34 @@ def batch_avg_dice(pred_masks, gt_masks, type="unet", epsilon=1e-6):
 
     return avg_dice.item()
 
-    
+def batch_avg_dice_without_back(pred_masks, gt_masks, type="unet", epsilon=1e-6):
+    n = pred_masks.shape[0]
+
+    if type == "unet":
+        binary_preds = torch.argmax(pred_masks, dim=1)  
+        gt_masks = gt_masks.squeeze(1)                 
+    else:
+        sigmoid = torch.nn.Sigmoid()
+        binary_preds = (sigmoid(pred_masks) > 0.5).float().squeeze(1)  
+        gt_masks = gt_masks.squeeze(1)
+
+    dices = []
+    for i in range(n):
+        pred = binary_preds[i]
+        gt = gt_masks[i]
+
+        intersection = (pred * gt).sum()
+        pred_sum = pred.sum()
+        gt_sum = gt.sum()
+        dice = (2 * intersection + epsilon) / (pred_sum + gt_sum + epsilon)
+
+        dices.append(dice)
+
+    avg_dice = torch.stack(dices).mean()
+    return avg_dice.item()
 
 
-# def batch_avg_dice(pred_masks, gt_masks, type="unet", epsilon=1e-6):
 
-
-#     gt_masks = gt_masks.squeeze(1)
-
-
-#     if type == "unet":
-#         binary_preds = torch.argmax(pred_masks, dim=1)  
-#     else:
-#         binary_preds = (torch.sigmoid(pred_masks) > 0.5).float()  
-
-#     intersection = (binary_preds * gt_masks).sum(dim=(1, 2))  
-
-#     pred_size = binary_preds.sum(dim=(1, 2)) 
-#     gt_size = gt_masks.sum(dim=(1, 2))  
-#     union = pred_size + gt_size  
-
-#     dice = (2. * intersection + epsilon) / (union + epsilon)
-
-#     return dice.mean()
 
 
 

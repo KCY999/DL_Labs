@@ -1,26 +1,16 @@
 import torch
 import torch.nn as nn
 
-PADDING = 1
-IMAGE_CHANNEL = 3
-N_CLASSES = 2
 
-"""
-Ref:
-    U-Net Architecture: paper of U-Net , https://www.youtube.com/watch?v=HS3Q_90hnDg
-    Batch Normalization in CNN: https://medium.com/biased-algorithms/batch-normalization-in-cnn-81c0bd832c63
-
-"""
-
-# PS orig paper of U-Net did not use BN
+# PS: orig paper of U-Net did not use BN
 class DoubleConv(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(DoubleConv, self).__init__()
         self.d_conv = nn.Sequential(
-            nn.Conv2d(in_channel, out_channel, kernel_size=3, padding=PADDING),
+            nn.Conv2d(in_channel, out_channel, kernel_size=3, padding=1),
             # nn.BatchNorm2d(out_channel),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=PADDING),
+            nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=1),
             # nn.BatchNorm2d(out_channel),
             nn.ReLU(inplace=True)
         )
@@ -28,6 +18,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.d_conv(x)
     
+
 class DownSampling(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(DownSampling, self).__init__()
@@ -38,6 +29,7 @@ class DownSampling(nn.Module):
         crop = self.conv(x)
         p = self.pool(crop)
         return crop, p
+
 
 class UpSampling(nn.Module):
     def __init__(self, in_channel, out_channel):
@@ -56,7 +48,7 @@ class UpSampling(nn.Module):
 class UNet(nn.Module):
     def __init__(self):
         super(UNet, self).__init__()
-        self.down_sampling_1 = DownSampling(IMAGE_CHANNEL, 64)
+        self.down_sampling_1 = DownSampling(3, 64)
         self.down_sampling_2 = DownSampling(64, 128)
         self.down_sampling_3 = DownSampling(128, 256)
         self.down_sampling_4 = DownSampling(256, 512)
@@ -68,22 +60,16 @@ class UNet(nn.Module):
         self.up_sampling_3 = UpSampling(256, 128)
         self.up_sampling_4 = UpSampling(128, 64)
 
-        self.out_conv = nn.Conv2d(64, N_CLASSES, kernel_size=1)
+        self.out_conv = nn.Conv2d(64, 2, kernel_size=1)
 
     def forward(self, input):
-        # endcode
         down_1, p1 = self.down_sampling_1(input)
         down_2, p2 = self.down_sampling_2(p1)
         down_3, p3 = self.down_sampling_3(p2)
         down_4, p4 = self.down_sampling_4(p3)
 
-
-        # bottom
         bottom = self.bottom_conv(p4)
-        # print(bottom.shape)
 
-        # decode
-        # print(down_4.shape)
         up_1 = self.up_sampling_1(bottom, down_4)
         up_2 = self.up_sampling_2(up_1, down_3)
         up_3 = self.up_sampling_3(up_2, down_2)
@@ -109,16 +95,17 @@ if __name__ == "__main__":
     unn = UNet().cuda()
 
     from torch.utils.tensorboard import SummaryWriter
-    writer = SummaryWriter('logs')
+    # writer = SummaryWriter('logs')
 
 
     import torchvision
 
-
+    c = nn.CrossEntropyLoss()
     for data in datloader:
-        print(data)
+        # print(data)
         imgs = data['image'].float().cuda()
-        masks = data['mask'].float().cuda()  
+        masks = data['mask'].long().cuda()  
+        print(masks.shape)
 
 
         output = unn(imgs)
@@ -126,14 +113,18 @@ if __name__ == "__main__":
 
         # output = torch.softmax(output, dim=1)  
         # output = torch.argmax(output, dim=1, keepdim=True).float()
-        print(output)
+        print(output.shape)
 
-        writer.add_image('Original Image', torchvision.utils.make_grid(imgs, normalize=True))
-        writer.add_image('Predicted Mask', torchvision.utils.make_grid(output, normalize=True))
-        writer.add_image('Ground Truth Mask', torchvision.utils.make_grid(masks, normalize=True))
+        masks = masks.squeeze(1)
+        print(masks.shape)
 
-        print(f"Input shape: {imgs.shape}, Output shape: {output.shape}")
+        loss = c(output, masks)
+
+        # writer.add_image('Original Image', torchvision.utils.make_grid(imgs, normalize=True))
+        # writer.add_image('Predicted Mask', torchvision.utils.make_grid(output, normalize=True))
+        # writer.add_image('Ground Truth Mask', torchvision.utils.make_grid(masks, normalize=True))
+
+        # print(f"Input shape: {imgs.shape}, Output shape: {output.shape}")
 
         break
-
 

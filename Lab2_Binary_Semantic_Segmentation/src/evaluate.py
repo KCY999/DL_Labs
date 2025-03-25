@@ -14,7 +14,7 @@ import oxford_pet
 def evaluate(net, criterion, val_dataloader, net_type):
     net.eval()
     val_running_loss = 0
-    avg_dice = 0
+    val_running_dice = 0
     with torch.no_grad():
         for sample in tqdm(val_dataloader):
             imgs = sample['image'].float().cuda()
@@ -28,9 +28,9 @@ def evaluate(net, criterion, val_dataloader, net_type):
             # print(preds.shape, masks.shape)
             loss = criterion(preds, masks)
             val_running_loss += loss.item()
-            avg_dice += batch_avg_dice(preds, masks, type=net_type)
+            val_running_dice += batch_avg_dice(preds, masks, type=net_type)
 
-    return val_running_loss, avg_dice
+    return val_running_loss, val_running_dice
 
 
 if __name__ == "__main__":

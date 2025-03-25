@@ -187,7 +187,7 @@ def load_dataset(data_path=DEFAULT_ROOT, mode='train', n_aug=0):
     dataset = SimpleOxfordPetDataset(data_path, mode)
     if mode == "train" and n_aug > 0:
         for _ in range(n_aug):
-            aug_dataset = AugDataset(type="")
+            aug_dataset = AugDataset(type="combine")
             dataset += aug_dataset
 
     # print(len(dataset))
@@ -215,44 +215,47 @@ def load_fliped_augmented_train_dataset(data_path=DEFAULT_ROOT, n_aug=1):
 if __name__ == "__main__":
     
     # use this to download raw data first
-    # OxfordPetDataset.download('./dataset/oxford-iiit-pet')
+    OxfordPetDataset.download('./dataset/oxford-iiit-pet')
 
 
-    from utils import new_writer
-    writer = new_writer(type="dataset")
+    # from utils import new_writer
+    # writer = new_writer(type="dataset")
 
-    # print(len(load_dataset(mode="valid")))
-    # print(len(load_dataset(mode="test")))
-    # print(len(load_dataset(mode='train')))
-    # print(len(load_dataset(mode='train', n_aug=1)))
+    # # print(len(load_dataset(mode="valid")))
+    # # print(len(load_dataset(mode="test")))
+    # # print(len(load_dataset(mode='train')))
+    # # print(len(load_dataset(mode='train', n_aug=1)))
 
-    # a_t = load_dataset(mode='train', n_aug=1)
-    # for i in range(len(a_t)):
-    #     print(a_t[i]['image'].shape)
+    # # a_t = load_dataset(mode='train', n_aug=1)
+    # # for i in range(len(a_t)):
+    # #     print(a_t[i]['image'].shape)
     
     
-    # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='test')
-    # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
+    # # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='test')
+    # # dataset = SimpleOxfordPetDataset(root="./dataset/oxford-iiit-pet", mode='train')
     
-    a_dataset = load_fliped_augmented_train_dataset(n_aug=1)
-    # print(test_dataset[0]['trimap'].tolist())
-    for i in range(10):
-        d = a_dataset[-i]
-        # print(d['image'].shape)
-        # print(d['mask'].shape)
-        writer.add_image('aug_image', d['image'], i)
-        writer.add_image('aug_mask', d['mask'], i)
-        # writer.add_image('trimap', d['trimap'], i)
+    # a_dataset = load_fliped_augmented_train_dataset(n_aug=1)
+    # # print(test_dataset[0]['trimap'].tolist())
+    # # a = len(a_dataset)
 
-    n_dataset = load_dataset()
-    for i in range(10):
-        d = n_dataset[-i]
-        # print(d['image'].shape)
-        # print(d['mask'].shape)
-        writer.add_image('orig_img', d['image'], i)
-        writer.add_image('orig_mask', d['mask'], i)
-        # writer.add_image('trimap', d['trimap'], i)
+    # for i in range(100):
+    #     d = a_dataset[-i]
+    #     # print(d['image'].shape)
+    #     # print(d['mask'].shape)
+    #     writer.add_image('aug_image', d['image'], i)
+    #     writer.add_image('aug_mask', d['mask'], i)
+    #     # writer.add_image('trimap', d['trimap'], i)
+
+    # n_dataset = load_dataset()
+    # # n = len(n_dataset)
+    # for i in range(100):
+    #     d = n_dataset[-i]
+    #     # print(d['image'].shape)
+    #     # print(d['mask'].shape)
+    #     writer.add_image('orig_img', d['image'], i)
+    #     writer.add_image('orig_mask', d['mask'], i)
+    #     # writer.add_image('trimap', d['trimap'], i)
 
 
-
+    pass
 

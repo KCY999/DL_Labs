@@ -83,10 +83,10 @@ class unet_up_sampling_in_res34_unet(nn.Module):
 class ResNet34_UNet(nn.Module):
     def __init__(self):
         super(ResNet34_UNet, self).__init__()
-        
-        # halves the size:  (S_in - k + 1 + 2P) / stride. for 2P = k -1, stride = 2:   S_out = S_in / 2 => P = (7 - 1) / 2 = 3
+
         self.res_conv = nn.Conv2d(3, 64, kernel_size=7, padding=3, stride=2)
         self.res_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
         self.res_down_sampling_1 = self._make_resnet34_down_sampling(64, 64, 3)
         self.res_down_sampling_2 = self._make_resnet34_down_sampling(64, 128, 4)
         self.res_down_sampling_3 = self._make_resnet34_down_sampling(128, 256, 6)
@@ -96,10 +96,8 @@ class ResNet34_UNet(nn.Module):
             nn.Conv2d(512, 256, kernel_size=1),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
-            # nn.Softmax2d()
         )
 
-        # self.unet_up_sampling_1 = unet_up_sampling_in_res34_unet(512, 256)
         self.unet_up_sampling_1 = unet_up_sampling_in_res34_unet(256+512, 32)
         self.scaling_down3 = nn.Conv2d(256, 512, kernel_size=1)
         self.unet_up_sampling_2 = unet_up_sampling_in_res34_unet(32+512, 32)
@@ -110,46 +108,36 @@ class ResNet34_UNet(nn.Module):
         
         self.out_conv = nn.Conv2d(32, 1, kernel_size=1)
 
+        # original design, but I think it is wrong
+        # self.out_conv = nn.Sequential(
+        #     nn.Conv2d(32, 1, kernel_size=1),
+        #     nn.BatchNorm2d(1),
+        #     nn.ReLU(inplace=True),
+        # )
+
+
 
     def forward(self, x):
         x = self.res_conv(x)
         x = self.res_pool(x)
 
         down_1 = self.res_down_sampling_1(x)
-        # print("down_1:", down_1.shape)
-
         down_2 = self.res_down_sampling_2(down_1)
-        # print("down_2:", down_2.shape)
-
         down_3 = self.res_down_sampling_3(down_2)
-        # print("down_3:", down_3.shape)
-
         down_4 = self.res_down_sampling_4(down_3)
-        # print("down_4:", down_4.shape)
-
 
         b = self.bridge(down_4)
-        # print(b)
-        # print("b:", b.shape)
-
 
         up_1 = self.unet_up_sampling_1(b, down_4)
-        # print("up_1", up_1.shape)
-        
+
         down_3 = self.scaling_down3(down_3)
         up_2 = self.unet_up_sampling_2(up_1, down_3)
-        # print("up_2", up_2.shape)
 
         up_3 = self.unet_up_sampling_3(up_2, down_2)
-        # print("up_3",up_3.shape)
-
         up_4 = self.unet_up_sampling_4(up_3, down_1)
-        # print("up_4", up_4.shape)
-
         up_5 = self.last_up_sampling(up_4)
 
         out = self.out_conv(up_5)
-        # print("out", out.shape)
 
         return out
         
