@@ -16,6 +16,7 @@ from collections import deque
 import wandb
 import argparse
 import time
+import torch.nn.functional as F
 
 gym.register_envs(ale_py)
 
@@ -86,21 +87,18 @@ class PrioritizedReplayBuffer:
     def __init__(self, capacity, alpha=0.6, beta=0.4):
         self.capacity = capacity
         self.alpha = alpha
-        self.beta = beta
+        # self.beta = beta
         self.buffer = []
         self.priorities = np.zeros((capacity,), dtype=np.float32)
         self.pos = 0
 
-
-
-
-    
     def __len__(self): 
         return len(self.buffer)
 
     def add(self, transition, error):
         ########## YOUR CODE HERE (for Task 3) ########## 
-        priority = (abs(error) + 1e-5) ** self.alpha
+        priority = (abs(error) + 1e-7) ** self.alpha
+        
         if len(self.buffer) < self.capacity:
             self.buffer.append(transition)
         else:
@@ -109,26 +107,34 @@ class PrioritizedReplayBuffer:
         self.pos = (self.pos + 1) % self.capacity       
         ########## END OF YOUR CODE (for Task 3) ########## 
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, beta):
         ########## YOUR CODE HERE (for Task 3) ########## 
         if len(self.buffer) == self.capacity:
             priorities = self.priorities
         else:
             priorities = self.priorities[:self.pos]
         
-        probs = (priorities + 1e-7) / priorities.sum()
-        indices = np.random.choice(len(self.buffer), batch_size, p=probs)
+
+        priorities = np.maximum(priorities, 1e-7)
+        
+        sampling_probs = priorities / np.sum(priorities)
+
+
+        indices = np.random.choice(len(self.buffer), batch_size, p=sampling_probs, replace=True)
         
         samples = [self.buffer[i] for i in indices]
-        weights = (len(self.buffer) * probs[indices]) ** (-self.beta)
-        weights /= weights.max()
-        return samples, indices, torch.tensor(weights, dtype=torch.float32)           
+
+        weights = (len(self.buffer) * sampling_probs [indices]) ** (-beta)
+        weights /= weights.max()             
+
+        return samples, indices, torch.tensor(weights, dtype=torch.float32)      
         ########## END OF YOUR CODE (for Task 3) ########## 
 
     def update_priorities(self, indices, errors):
         ########## YOUR CODE HERE (for Task 3) ########## 
+        errors = errors.detach().cpu().numpy()
         for i, e in zip(indices, errors):
-            self.priorities[i] = (abs(e) + 1e-5) ** self.alpha
+            self.priorities[i] = (abs(e) + 1e-7) ** self.alpha
         ########## END OF YOUR CODE (for Task 3) ########## 
         
 
@@ -174,6 +180,12 @@ class DQNAgent:
         self.n_step_buffer = deque(maxlen=self.n_step)
 
 
+        self.beta_start = 0.4
+        self.beta_end = 1.0
+        self.beta_anneal_steps = 1000000
+
+
+
     def select_action(self, state):
         if random.random() < self.epsilon:
             return random.randint(0, self.num_actions - 1)
@@ -200,14 +212,8 @@ class DQNAgent:
                 self.n_step_buffer.append((state, action, reward, next_state, done))
                 if len(self.n_step_buffer) == self.n_step:
                     n_state, n_action, n_reward, n_next_state, n_done = self._get_n_step_info()
-                    with torch.no_grad():
-                        s_tensor = torch.from_numpy(np.array(n_state)).unsqueeze(0).float().to(self.device)
-                        ns_tensor = torch.from_numpy(np.array(n_next_state)).unsqueeze(0).float().to(self.device)
-                        q_val = self.q_net(s_tensor).gather(1, torch.tensor([[n_action]], device=self.device)).item()
-                        next_q = self.target_net(ns_tensor).max(1)[0].item()
-                        expected_q = n_reward + self.gamma * next_q * (1 - n_done)
-                        error = abs(q_val - expected_q)
-                    self.memory.add((n_state, n_action, n_reward, n_next_state, n_done), error=error)
+                    max_prio = self.memory.priorities.max() if len(self.memory) > 0 else 1.0
+                    self.memory.add((n_state, n_action, n_reward, n_next_state, n_done), error=max_prio)
 
                 for _ in range(self.train_per_step):
                     self.train()
@@ -238,15 +244,8 @@ class DQNAgent:
 
             while len(self.n_step_buffer) > 0:
                 n_state, n_action, n_reward, n_next_state, n_done = self._get_n_step_info()
-                with torch.no_grad():
-                    s_tensor = torch.from_numpy(np.array(n_state)).unsqueeze(0).float().to(self.device)
-                    ns_tensor = torch.from_numpy(np.array(n_next_state)).unsqueeze(0).float().to(self.device)
-                    q_val = self.q_net(s_tensor).gather(1, torch.tensor([[n_action]], device=self.device)).item()
-                    next_q = self.target_net(ns_tensor).max(1)[0].item()
-                    expected_q = n_reward + self.gamma * next_q * (1 - n_done)
-                    error = abs(q_val - expected_q)
-
-                self.memory.add((n_state, n_action, n_reward, n_next_state, n_done), error=error)
+                max_prio = self.memory.priorities.max() if len(self.memory) > 0 else 1.0
+                self.memory.add((n_state, n_action, n_reward, n_next_state, n_done), error=max_prio)
                 self.n_step_buffer.popleft()
 
             print(f"[Eval] Ep: {ep} Total Reward: {total_reward} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f}")
@@ -320,7 +319,10 @@ class DQNAgent:
        
         ########## YOUR CODE HERE (<5 lines) ##########
         # Sample a mini-batch of (s,a,r,s',done) from the replay buffer
-        samples, indices, weights = self.memory.sample(self.batch_size)
+        fraction = min(1.0, self.train_count / self.beta_anneal_steps)
+        beta = self.beta_start + fraction * (self.beta_end - self.beta_start)
+
+        samples, indices, weights = self.memory.sample(self.batch_size, beta)
         states, actions, rewards, next_states, dones = zip(*samples)
         ########## END OF YOUR CODE ##########
 
@@ -338,20 +340,32 @@ class DQNAgent:
         with torch.no_grad():
             next_q_values = self.q_net(next_states)
             next_actions = next_q_values.argmax(1).unsqueeze(1)
-            next_q_target = self.target_net(next_states).gather(1, next_actions).squeeze(1)
-            target_q = rewards + self.gamma * (1 - dones) * next_q_target
+            
+            next_q_values_target = self.target_net(next_states)
+            next_q_target = next_q_values_target.gather(1, next_actions).squeeze(1)
+            # print(rewards.shape, dones.shape, next_q_target.shape)
+            target_q = rewards + (self.gamma ** self.n_step) * (1 - dones) * next_q_target
             # print(next_q_target.shape, target_q.shape)
 
-        errors = (q_values - target_q).detach().cpu().numpy()
-        self.memory.update_priorities(indices, errors)
+        td_errors = torch.abs(target_q.detach() - q_values.detach())
+        self.memory.update_priorities(indices, td_errors)
 
-        loss_per_sample = (q_values - target_q).pow(2)
-        loss = (loss_per_sample * weights.to(self.device).detach()).mean()
+        # loss_per_sample = (q_values - target_q).pow(2)
+        # loss = (loss_per_sample * weights.to(self.device).detach()).mean()
+
+        # print(q_values.shape, target_q.shape) # torch.Size([32]) torch.Size([32])
+        
+
+        weights = weights.to(self.device)
+        sample_losses = F.mse_loss(q_values, target_q, reduction='none')
+        # print(weights.shape, sample_losses.shape)
+        loss = (weights * sample_losses).mean()
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        wandb.log({"Train/Loss": loss.item()})
+
         ########## END OF YOUR CODE ##########  
         if self.train_count % self.target_update_frequency == 0:
             self.target_net.load_state_dict(self.q_net.state_dict())
@@ -359,6 +373,13 @@ class DQNAgent:
         # NOTE: Enable this part if "loss" is defined
         if self.train_count % 1000 == 0:
            print(f"[Train #{self.train_count}] Loss: {loss.item():.4f} Q mean: {q_values.mean().item():.3f} std: {q_values.std().item():.3f}")
+           wandb.log({
+                "Train/Loss": loss.item(),
+                "Train/Epsilon": self.epsilon,
+                "Train/Beta": beta,
+                "Train/Q_mean": q_values.mean().item(),
+                "Train/Q_std": q_values.std().item()
+            })
 
     def _get_n_step_info(self):
         R = 0.0
@@ -390,6 +411,8 @@ if __name__ == "__main__":
     parser.add_argument("--max-episode-steps", type=int, default=10000)
     parser.add_argument("--train-per-step", type=int, default=1)
     parser.add_argument("--n-step", type=int, default=5)
+    parser.add_argument("--per-alpha", type=float, default=0.6)
+    parser.add_argument("--per-beta", type=float, default=0.4)
     args = parser.parse_args()
 
     wandb.init(project="DLP-Lab5-DQN-Pong-task3", name=args.wandb_run_name, save_code=True)
