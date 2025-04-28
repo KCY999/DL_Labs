@@ -125,7 +125,7 @@ class PrioritizedReplayBuffer:
         samples = [self.buffer[i] for i in indices]
 
         weights = (len(self.buffer) * sampling_probs [indices]) ** (-beta)
-        weights /= weights.max()
+        weights /= weights.max()             
 
         return samples, indices, torch.tensor(weights, dtype=torch.float32)      
         ########## END OF YOUR CODE (for Task 3) ########## 
@@ -154,7 +154,7 @@ class DQNAgent:
         self.q_net.apply(init_weights)
         self.target_net =  DQN(4, self.num_actions).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr, eps=args.adam_eps)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr)
 
         self.batch_size = args.batch_size
         self.gamma = args.discount_factor
@@ -173,8 +173,8 @@ class DQNAgent:
         os.makedirs(self.save_dir, exist_ok=True)
 
 
-        # self.memory = deque(maxlen=args.memory_size) # replay buffer
-        self.memory = PrioritizedReplayBuffer(capacity=args.memory_size)
+        self.memory = deque(maxlen=args.memory_size) # replay buffer
+        # self.memory = PrioritizedReplayBuffer(capacity=args.memory_size)
 
         self.n_step = args.n_step
         self.n_step_buffer = deque(maxlen=self.n_step)
@@ -212,8 +212,7 @@ class DQNAgent:
                 self.n_step_buffer.append((state, action, reward, next_state, done))
                 if len(self.n_step_buffer) == self.n_step:
                     n_state, n_action, n_reward, n_next_state, n_done = self._get_n_step_info()
-                    max_prio = self.memory.priorities.max() if len(self.memory) > 0 else 1.0
-                    self.memory.add((n_state, n_action, n_reward, n_next_state, n_done), error=max_prio)
+                    self.memory.append((n_state, n_action, n_reward, n_next_state, n_done))
 
                 for _ in range(self.train_per_step):
                     self.train()
@@ -244,8 +243,7 @@ class DQNAgent:
 
             while len(self.n_step_buffer) > 0:
                 n_state, n_action, n_reward, n_next_state, n_done = self._get_n_step_info()
-                max_prio = self.memory.priorities.max() if len(self.memory) > 0 else 1.0
-                self.memory.add((n_state, n_action, n_reward, n_next_state, n_done), error=max_prio)
+                self.memory.append((n_state, n_action, n_reward, n_next_state, n_done))
                 self.n_step_buffer.popleft()
 
             print(f"[Eval] Ep: {ep} Total Reward: {total_reward} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f}")
@@ -319,11 +317,10 @@ class DQNAgent:
        
         ########## YOUR CODE HERE (<5 lines) ##########
         # Sample a mini-batch of (s,a,r,s',done) from the replay buffer
-        fraction = min(1.0, self.train_count / self.beta_anneal_steps)
-        beta = self.beta_start + fraction * (self.beta_end - self.beta_start)
 
-        samples, indices, weights = self.memory.sample(self.batch_size, beta)
-        states, actions, rewards, next_states, dones = zip(*samples)
+
+        batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
         ########## END OF YOUR CODE ##########
 
         # Convert the states, actions, rewards, next_states, and dones into torch tensors
@@ -347,19 +344,7 @@ class DQNAgent:
             target_q = rewards + (self.gamma ** self.n_step) * (1 - dones) * next_q_target
             # print(next_q_target.shape, target_q.shape)
 
-        td_errors = torch.abs(target_q.detach() - q_values.detach())
-        self.memory.update_priorities(indices, td_errors)
-
-        # loss_per_sample = (q_values - target_q).pow(2)
-        # loss = (loss_per_sample * weights.to(self.device).detach()).mean()
-
-        # print(q_values.shape, target_q.shape) # torch.Size([32]) torch.Size([32])
-        
-
-        weights = weights.to(self.device)
-        sample_losses = F.mse_loss(q_values, target_q, reduction='none')
-        # print(weights.shape, sample_losses.shape)
-        loss = (weights * sample_losses).mean()
+        loss = nn.MSELoss()(q_values, target_q)
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -376,7 +361,6 @@ class DQNAgent:
            wandb.log({
                 "Train/Loss": loss.item(),
                 "Train/Epsilon": self.epsilon,
-                "Train/Beta": beta,
                 "Train/Q_mean": q_values.mean().item(),
                 "Train/Q_std": q_values.std().item()
             })
@@ -397,23 +381,22 @@ class DQNAgent:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--save-dir", type=str, default="./pong_results_task3_v1")
-    parser.add_argument("--wandb-run-name", type=str, default="Pong-full-run")
+    parser.add_argument("--save-dir", type=str, default="./task3_pong_ddqn_mr")
+    parser.add_argument("--wandb-run-name", type=str, default="task3_pong_ddqn_mr")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--memory-size", type=int, default=100000)
-    parser.add_argument("--lr", type=float, default=0.0001)
+    parser.add_argument("--lr", type=float, default=0.0002)
     parser.add_argument("--discount-factor", type=float, default=0.99)
     parser.add_argument("--epsilon-start", type=float, default=1.0)
-    parser.add_argument("--epsilon-decay", type=float, default=0.999999)
+    parser.add_argument("--epsilon-decay", type=float, default=0.9999)
     parser.add_argument("--epsilon-min", type=float, default=0.05)
     parser.add_argument("--target-update-frequency", type=int, default=1000)
     parser.add_argument("--replay-start-size", type=int, default=50000)
     parser.add_argument("--max-episode-steps", type=int, default=10000)
     parser.add_argument("--train-per-step", type=int, default=1)
-    parser.add_argument("--n-step", type=int, default=5)
+    parser.add_argument("--n-step", type=int, default=3)
     parser.add_argument("--per-alpha", type=float, default=0.6)
     parser.add_argument("--per-beta", type=float, default=0.4)
-    parser.add_argument("--adam-eps", type=float, default=1e-8)
     args = parser.parse_args()
 
     wandb.init(project="DLP-Lab5-DQN-Pong-task3", name=args.wandb_run_name, save_code=True)

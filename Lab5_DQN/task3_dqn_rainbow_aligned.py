@@ -125,7 +125,7 @@ class PrioritizedReplayBuffer:
         samples = [self.buffer[i] for i in indices]
 
         weights = (len(self.buffer) * sampling_probs [indices]) ** (-beta)
-        weights /= weights.max()
+        weights /= weights.max()             
 
         return samples, indices, torch.tensor(weights, dtype=torch.float32)      
         ########## END OF YOUR CODE (for Task 3) ########## 
@@ -154,7 +154,7 @@ class DQNAgent:
         self.q_net.apply(init_weights)
         self.target_net =  DQN(4, self.num_actions).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr, eps=args.adam_eps)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr, eps=1.5e-4)
 
         self.batch_size = args.batch_size
         self.gamma = args.discount_factor
@@ -413,7 +413,6 @@ if __name__ == "__main__":
     parser.add_argument("--n-step", type=int, default=5)
     parser.add_argument("--per-alpha", type=float, default=0.6)
     parser.add_argument("--per-beta", type=float, default=0.4)
-    parser.add_argument("--adam-eps", type=float, default=1e-8)
     args = parser.parse_args()
 
     wandb.init(project="DLP-Lab5-DQN-Pong-task3", name=args.wandb_run_name, save_code=True)

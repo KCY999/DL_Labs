@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import gymnasium as gym
-from dqn import DQN, AtariPreprocessor  # 確保你 `dqn.py` 有定義這些 class
+from task1_dqn import DQN, AtariPreprocessor  
 import argparse
 
 def evaluate_model(model_path, num_episodes=20, render=False):
@@ -11,7 +11,6 @@ def evaluate_model(model_path, num_episodes=20, render=False):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 建立模型並載入訓練參數
     model = DQN(num_actions).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()

@@ -33,9 +33,7 @@ class DQN(nn.Module):
         - Feel free to add any member variables/functions whenever needed
     """
     def __init__(self, num_actions):
-        super(DQN, self).__init__()
-        # An example: 
-       
+        super(DQN, self).__init__()       
         ########## YOUR CODE HERE (5~10 lines) ##########
         cart_pole_input_dim = 4 # v_cart, a_cart,𝜃_pole→cart, a_pole
         self.network = nn.Sequential(
@@ -310,6 +308,7 @@ if __name__ == "__main__":
     parser.add_argument("--train-per-step", type=int, default=1)
     args = parser.parse_args()
 
+    # task1_env_name = 
     wandb.init(project="DLP-Lab5-DQN-CartPole", name=args.wandb_run_name, save_code=True)
     agent = DQNAgent(args=args)
     agent.run()

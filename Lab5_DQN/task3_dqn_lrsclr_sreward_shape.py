@@ -17,6 +17,7 @@ import wandb
 import argparse
 import time
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import StepLR
 
 gym.register_envs(ale_py)
 
@@ -154,7 +155,9 @@ class DQNAgent:
         self.q_net.apply(init_weights)
         self.target_net =  DQN(4, self.num_actions).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
+
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr, eps=args.adam_eps)
+        self.scheduler = StepLR(self.optimizer, step_size=args.scheduler_step_size, gamma=args.scheduler_gamma) 
 
         self.batch_size = args.batch_size
         self.gamma = args.discount_factor
@@ -184,6 +187,7 @@ class DQNAgent:
         self.beta_end = 1.0
         self.beta_anneal_steps = 1000000
 
+        self.use_reward_shape = args.use_reward_shape
 
 
     def select_action(self, state):
@@ -208,6 +212,12 @@ class DQNAgent:
                 next_obs, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
                 
+                if self.use_reward_shape:
+                    if reward == 1:
+                        reward += 0.2 
+                    elif reward == -1:
+                        reward -= 0.3
+
                 next_state = self.preprocessor.step(next_obs)
                 self.n_step_buffer.append((state, action, reward, next_state, done))
                 if len(self.n_step_buffer) == self.n_step:
@@ -223,14 +233,17 @@ class DQNAgent:
                 self.env_count += 1
                 step_count += 1
 
-                if self.env_count % 1000 == 0:                 
-                    print(f"[Collect] Ep: {ep} Step: {step_count} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f}")
+                if self.env_count % 1000 == 0:       
+                    current_lr = self.optimizer.param_groups[0]['lr']
+                    print(f"[Collect] Ep: {ep} Step: {step_count} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f} LR: {current_lr:.6f}")
+                    
                     wandb.log({
                         "Episode": ep,
                         "Step Count": step_count,
                         "Env Step Count": self.env_count,
                         "Update Count": self.train_count,
-                        "Epsilon": self.epsilon
+                        "Epsilon": self.epsilon,
+                        "LR": current_lr   
                     })
                     ########## YOUR CODE HERE  ##########
                     # Add additional wandb logs for debugging if needed 
@@ -364,6 +377,7 @@ class DQNAgent:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        self.scheduler.step()
 
 
         ########## END OF YOUR CODE ##########  
@@ -372,13 +386,13 @@ class DQNAgent:
 
         # NOTE: Enable this part if "loss" is defined
         if self.train_count % 1000 == 0:
-           print(f"[Train #{self.train_count}] Loss: {loss.item():.4f} Q mean: {q_values.mean().item():.3f} std: {q_values.std().item():.3f}")
+           print(f"[Train #{self.train_count}] Loss: {loss.item():.4f} Q mean: {q_values.mean().item():.3f} std: {q_values.std().item():.3f} ")
            wandb.log({
                 "Train/Loss": loss.item(),
                 "Train/Epsilon": self.epsilon,
                 "Train/Beta": beta,
                 "Train/Q_mean": q_values.mean().item(),
-                "Train/Q_std": q_values.std().item()
+                "Train/Q_std": q_values.std().item(),
             })
 
     def _get_n_step_info(self):
@@ -414,6 +428,9 @@ if __name__ == "__main__":
     parser.add_argument("--per-alpha", type=float, default=0.6)
     parser.add_argument("--per-beta", type=float, default=0.4)
     parser.add_argument("--adam-eps", type=float, default=1e-8)
+    parser.add_argument("--scheduler-step-size", type=float, default=100000)
+    parser.add_argument("--scheduler-gamma", type=float, default=1)
+    parser.add_argument("--use-reward-shape", action="store_true", default=False)
     args = parser.parse_args()
 
     wandb.init(project="DLP-Lab5-DQN-Pong-task3", name=args.wandb_run_name, save_code=True)
