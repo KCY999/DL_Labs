@@ -60,16 +60,20 @@ def evaluate(args):
     evaluator = evaluation_model()
 
     eval_dataset = EvalDataset(test_name=args.test_name, images_dir=args.images_dir)
-    eval_loader = DataLoader(dataset=eval_dataset, batch_size=8)
+    eval_loader = DataLoader(dataset=eval_dataset, batch_size=4)
 
     all_acc = []
-    for images, labels in tqdm(eval_loader): 
+    i = 1
+    for images, labels in eval_loader: 
         images = images.to(device)
         labels = labels.to(device)
         acc = evaluator.eval(images, labels)
         all_acc.append(acc)
+        print(f"[BATCH {i}] batch score = {acc:.5}")
+        i += 1
+
     avg_acc = np.mean(all_acc)
-    print(f"avg score = {avg_acc:.5}")
+    print(f"[TOTAL] avg score = {avg_acc:.5}")
     
 
 

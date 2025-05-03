@@ -2,7 +2,7 @@ import torch
 import os
 import json
 from torchvision.utils import save_image
-from model_architecture import UNetCond
+from model_architecture import UNetCond, UnetCondTime
 from train import get_schedule, extract
 from tqdm import tqdm
 import argparse
@@ -16,6 +16,7 @@ def sample_images(model, cond, T, betas, alphas, alpha_cumprod, device):
 
     for t in reversed(range(T)):
         t_tensor = torch.full((B,), t, dtype=torch.long).to(device)
+        # print(t_tensor.shape)
         eps_pred = model(x_t, t_tensor, cond)
 
         alpha = extract(alphas, t_tensor, x_t.shape)
@@ -57,14 +58,17 @@ def generate_images(cond_tensor, save_dir, model, T, betas, alphas, alpha_cumpro
     for idx in tqdm(range(len(cond_tensor)), desc=f"Generating to {save_dir}"):
         cond = cond_tensor[idx].unsqueeze(0).to(device)  # shape: (1, 24)
         img = sample_images(model, cond, T, betas, alphas, alpha_cumprod, device)  # (1, 3, 64, 64)
-        # img = (img + 1) / 2  # [-1, 1] → [0, 1]
         save_image(img[0], os.path.join(save_dir, f"{idx}.png"))
 
 def main(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     T = args.T
+    
+    if args.use_improv_unet:
+        model = UnetCondTime(group_normalize=args.GN).to(device)
+    else:
+        model = UNetCond().to(device)
 
-    model = UNetCond().to(device)
     model.load_state_dict(torch.load(args.model_path, map_location=device))
     model.eval()
 
@@ -81,5 +85,9 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str)  
     parser.add_argument("--output-dir", type=str, default="./images")  
     parser.add_argument("--T", type=int, default=1000)  
+    parser.add_argument("--use-improv-unet", action="store_true", default=False)
+    parser.add_argument("--GN", action="store_true", default=False)
+
+
     args =  parser.parse_args()
     main(args=args)

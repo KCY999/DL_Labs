@@ -1,20 +1,28 @@
 import torch
 from torchvision.utils import make_grid, save_image
 import json
-from model_architecture import UNetCond
+from model_architecture import UNetCond, UnetCondTime
 from train import get_schedule, extract
-import os
+import argparse
+from tqdm import tqdm
 
+
+use_improv_unet = False
 model_path = "results_tep500/checkpoint_ep500.pth"
 T = 1000
 label_set = ["red sphere", "cyan cylinder", "cyan cube"]
 device = "cuda"
-# n_img = 32
 
-def gen_denoise_process():
+
+def gen_denoise_process(args):
     with open("objects.json", "r") as f:
         obj2idx = json.load(f)
         num_classes = len(obj2idx)
+
+
+    use_improv_unet = args.use_improv_unet
+    model_path = args.model_path
+    T = args.T
 
 
     label_vec =  torch.zeros(num_classes)
@@ -25,7 +33,11 @@ def gen_denoise_process():
     cond = label_vec.unsqueeze(0).to(device)
 
 
-    model = UNetCond().to(device)
+    if use_improv_unet:
+        model = UnetCondTime(args.GN).to(device)
+    else:
+        model = UNetCond().to(device)
+
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
@@ -39,11 +51,12 @@ def gen_denoise_process():
     snapshot_ts = [31, 62, 93, 124, 155, 186, 217, 248, 279]
 
 
-    for t in reversed(range(T)):
+    for t in tqdm(reversed(range(T))):
         if t in snapshot_ts:
             denoise_process_imgs.append(x_t[0].clone().cpu())
 
         t_tensor = torch.full((B,), t, dtype=torch.long).to(device)
+        
         eps_pred = model(x_t, t_tensor, cond)
 
         alpha = extract(alphas, t_tensor, x_t.shape)
@@ -64,10 +77,18 @@ def gen_denoise_process():
     denoise_process_imgs = torch.stack(denoise_process_imgs)
     # grid = make_grid(denoise_process_imgs, nrow=n_img, normalize=True)
     grid = make_grid(denoise_process_imgs, nrow=10, normalize=False)
-    save_image(grid, fp="denoising_process.png")
+    save_image(grid, fp=args.output_name)
 
 
 if __name__ == "__main__":
     # snapshot_ts = [ i * (T // n_img) for i in range(1, n_img-1)] + [T-1]
     # print(snapshot_ts)
-    gen_denoise_process()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-path", type=str, default="results_tep500/checkpoint_ep500.pth")
+    parser.add_argument("--T", type=int, default=1000)  
+    parser.add_argument("--use-improv-unet", action="store_true", default=False)   
+    parser.add_argument("--GN", action="store_true", default=False)
+    parser.add_argument("--output-name",  type=str , default="denoising_process.png")   
+    args = parser.parse_args()
+    gen_denoise_process(args=args)

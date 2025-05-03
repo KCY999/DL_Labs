@@ -4,18 +4,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import torchvision.transforms as transforms
-from torchvision.utils import save_image
 
 import argparse
 import os
-import numpy as np
-import random
-import pandas as pd
 
-from model_architecture import UNetCond
+from model_architecture import UNetCond, UnetCondTime
 import iclevr
-import evaluator
 
 
 
@@ -46,9 +40,16 @@ def train(args):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    if args.use_improv_unet:
+        model = UnetCondTime(group_normalize=args.GN).to(device)
+    else:
+        model = UNetCond().to(device)
 
-    model = UNetCond().to(device)
+
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    if args.use_lr_scheduler:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
+
     loss_fn = nn.MSELoss()
 
     # noise schedule
@@ -59,8 +60,6 @@ def train(args):
     dataset = iclevr.IclevrDataset()  
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    best_acc = 0.0
-    eval_log = []
 
     for epoch in tqdm(range(epochs)):
         model.train()
@@ -87,9 +86,15 @@ def train(args):
             loss.backward()
             optimizer.step()
 
-            pbar.set_postfix(loss=loss.item())
 
-        if (epoch + 1) % 10 == 0:
+            pbar.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
+
+        if args.use_lr_scheduler:
+            scheduler.step() 
+
+        if (epoch + 1) % 100 == 0:
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f"[Epoch {epoch + 1}] current LR = {current_lr} \n")
             torch.save(model.state_dict(), os.path.join(saved_dir, f"checkpoint_ep{epoch+1}.pth"))
 
 
@@ -97,9 +102,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--saved-dir", type=str, default="./results")
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--lr", type=int, default=1e-4)
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--T", type=int, default=1000)
+    parser.add_argument("--use-lr-scheduler", action="store_true", default=False)
+    parser.add_argument("--use-improv-unet", action="store_true", default=False)
+    parser.add_argument("--GN", action="store_true", default=False)
+
     args = parser.parse_args()
 
     train(args=args)
