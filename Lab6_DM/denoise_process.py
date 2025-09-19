@@ -7,14 +7,10 @@ import argparse
 from tqdm import tqdm
 
 
-use_improv_unet = False
-model_path = "results_tep500/checkpoint_ep500.pth"
-T = 1000
-label_set = ["red sphere", "cyan cylinder", "cyan cube"]
-device = "cuda"
-
-
 def gen_denoise_process(args):
+    device = "cuda"
+    label_set = ["red sphere", "cyan cylinder", "cyan cube"]
+
     with open("objects.json", "r") as f:
         obj2idx = json.load(f)
         num_classes = len(obj2idx)
@@ -83,9 +79,9 @@ def gen_denoise_process(args):
 if __name__ == "__main__":
     # snapshot_ts = [ i * (T // n_img) for i in range(1, n_img-1)] + [T-1]
     # print(snapshot_ts)
-
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="results_tep500/checkpoint_ep500.pth")
+    parser.add_argument("--model-path", type=str, default="result_ep500_improvUnet_GN\checkpoint_ep500.pth")
     parser.add_argument("--T", type=int, default=1000)  
     parser.add_argument("--use-improv-unet", action="store_true", default=False)   
     parser.add_argument("--GN", action="store_true", default=False)

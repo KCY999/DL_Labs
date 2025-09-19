@@ -25,7 +25,7 @@ def extract(a, t, x_shape):
 
 def q_sample(x0, t, noise, alpha_cumprod):
     sqrt_alpha = extract(alpha_cumprod.sqrt(), t, x0.shape)
-    sqrt_one_minus = extract((1 - alpha_cumprod).sqrt(), t, x0.shape)    
+    sqrt_one_minus = extract((1 - alpha_cumprod).sqrt(), t, x0.shape)
     return sqrt_alpha * x0 + sqrt_one_minus * noise
 
 

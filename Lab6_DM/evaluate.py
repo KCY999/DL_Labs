@@ -64,6 +64,7 @@ def evaluate(args):
 
     all_acc = []
     i = 1
+    print(f"Evaluating: {args.test_name}")
     for images, labels in eval_loader: 
         images = images.to(device)
         labels = labels.to(device)
@@ -79,7 +80,7 @@ def evaluate(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test-name", type=str, default="test")   
+    parser.add_argument("--test-name", type=str, default="test")   # test or new_test
     parser.add_argument("--images-dir", type=str, default="images")
     parser.add_argument("--device", type=str, default="cuda")
     args = parser.parse_args()

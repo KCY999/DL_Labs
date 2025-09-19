@@ -5,7 +5,8 @@ from PIL import Image
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
-base_dir = "./images_ep500"
+# base_dir = "./images_ep500"
+base_dir = "./images_ep500_improvUnet_GN"
 
 to_tensor = transforms.ToTensor()
 

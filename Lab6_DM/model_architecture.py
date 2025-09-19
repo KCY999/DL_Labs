@@ -19,6 +19,7 @@ class ConvBlockCond(nn.Module):
     def forward(self, x, cond_embed):
         B, C, H, W = x.shape
         cond = self.cond_proj(cond_embed).view(B, -1, 1, 1) 
+
         x = self.conv1(x)
         x = self.norm1(x)
         x = self.relu1(x + cond)
@@ -26,6 +27,7 @@ class ConvBlockCond(nn.Module):
         x = self.conv2(x)
         x = self.norm2(x)
         x = self.relu2(x + cond)
+        
         return x
 
 
@@ -39,7 +41,6 @@ class UNetCond(nn.Module):
             nn.ReLU(),
             nn.Linear(time_dim, time_dim)
         )
-        
 
         # Encoder blocks
         self.enc1 = ConvBlockCond(3, 64, cond_dim)
@@ -95,7 +96,9 @@ class UNetCond(nn.Module):
         u1 = self.up1(u2)
         u1 = self.dec1(torch.cat([u1, x1], dim=1), cond)
 
-        return self.out(u1)
+        out = self.out(u1)
+
+        return out
 
 
 
@@ -147,9 +150,6 @@ class ConvblockCondTime(nn.Module):
         t_proj = self.time_mlp(t_embed).view(B, -1, 1, 1)
 
         cond_proj = self.cond_mlp(cond).view(B, -1, 1, 1)
-        
-        # print(t.shape)
-        # print(cond.shape)
 
         x = self.conv1(x)
         x = x + t_proj + cond_proj
@@ -209,7 +209,7 @@ class UnetCondTime(nn.Module):
         b = self.bot(p3, t, cond)
 
         up3 = self.up3(b)
-        up3 = self.dec3(torch.cat([up3, down3], dim=1), t, cond)  # skip connection
+        up3 = self.dec3(torch.cat([up3, down3], dim=1), t, cond)  
         
         up2 = self.up2(up3)
         up2 = self.dec2(torch.cat([up2, down2], dim=1), t, cond)
@@ -217,8 +217,9 @@ class UnetCondTime(nn.Module):
         up1 = self.up1(up2)
         up1 = self.dec1(torch.cat([up1, down1], dim=1), t, cond)
 
+        out = self.output(up1)
 
-        return self.output(up1)
+        return out
 
 
 

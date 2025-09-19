@@ -3,3 +3,8 @@ dataset
 _MACOSX
 DL_env
 logs
+.pth
+__pycache__
+.mp4
+wandb
+specs
