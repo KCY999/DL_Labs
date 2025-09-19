@@ -22,11 +22,11 @@ _本專案僅包含本人自行撰寫的程式碼與報告，未公開任何課�
 - **結果**:  
   - **U-Net**：lr=1e-4、`combine`、`n_aug=1` → **Dice Score = 0.9309**。  
 
-  <img src="Figs\lab2_U-Net_acc.png" alt="U-Net acc" width="400" height="250"/> <img src="Figs\lab2_U-Net_loss.png" alt="U-Net loss" width="400" height="250"/>
+  <img src="Figs\lab2_U-Net_acc.png" alt="U-Net acc" width="320" height="200"/> <img src="Figs\lab2_U-Net_loss.png" alt="U-Net loss" width="320" height="200"/>
 
   - **ResNet34+U-Net**：lr=1e-3、`combine`、`n_aug=1` → **Dice Score = 0.9478**。  
 
-  <img src="Figs\lab2_Res-U-Net_acc.png" alt="Res-U-Net acc" width="400" height="250"/> <img src="Figs\lab2_Res-U-Net_loss.png" alt="Res-U-Net loss" width="400" height="250"/>
+  <img src="Figs\lab2_Res-U-Net_acc.png" alt="Res-U-Net acc" width="320" height="200"/> <img src="Figs\lab2_Res-U-Net_loss.png" alt="Res-U-Net loss" width="320" height="200"/>
 
   - **觀察**：  
     - U-Net 對學習率與資料量敏感，需搭配增強與較低學習率才能穩定收斂。  
